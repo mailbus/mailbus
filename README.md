@@ -354,7 +354,18 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for de
 
 ## 📄 License
 
-Apache License 2.0 - see [LICENSE](LICENSE) for details.
+Apache License 2.0 with additional terms - see [LICENSE](LICENSE) for details.
+
+**Important Restrictions:**
+- **Cloud Services**: Commercial cloud hosting of MailBus is prohibited without explicit permission
+- **Trademark**: The "MailBus" name and trademark are reserved
+- **Enterprise Features**: Commercial rights to webhook, rule engine, and advanced features are reserved
+
+**Allowed Uses:**
+- Self-hosting for personal or organizational use
+- Single-tenant managed hosting for individual clients
+- Consulting and integration services
+- Creating derivative works under the same license
 
 ## 🙏 Acknowledgments
 

@@ -175,6 +175,73 @@
 
    END OF TERMS AND CONDITIONS
 
+   ADDITIONAL TERMS FOR MAILBUS
+
+   This section contains additional terms that apply specifically to the
+   MailBus software project. These terms are in addition to, and shall
+   be construed in conjunction with, the Apache License 2.0 terms above.
+
+   10. Reserved Rights.
+
+       (a) Trademark. The Licensor expressly reserves all rights to the
+           "MailBus" name and trademark. You may not use the "MailBus"
+           name or any confusingly similar designation in connection with
+           any software or service without prior written consent from the
+           Licensor. This includes, but is not limited to:
+           - Using "MailBus" in the name of any derived work or service
+           - Using "MailBus" in any domain name or URL
+           - Using "MailBus" in any marketing materials or advertisements
+           - Using "MailBus" in any way that suggests endorsement or affiliation
+
+       (b) Cloud Services. The Licensor expressly reserves all rights to
+           provide MailBus as a cloud-hosted service, software-as-a-service
+           (SaaS), platform-as-a-service (PaaS), or any other form of
+           commercial cloud offering. You may NOT:
+           - Offer MailBus or derivative works as a commercial cloud service
+           - Host MailBus on behalf of third parties for commercial purposes
+           - Provide MailBus functionality through any multi-tenant cloud platform
+           - Integrate MailBus into any commercial cloud service offering
+           - Use MailBus to compete directly or indirectly with the Licensor's
+             current or future commercial cloud offerings
+
+           For the avoidance of doubt, this restriction does NOT prevent:
+           - Self-hosting MailBus for your own internal use or for use by
+             your organization
+           - Providing consulting or integration services for MailBus
+           - Creating and distributing derivative works under this license
+           - Hosting MailBus as part of a managed hosting service for individual
+             clients (single-tenant deployments)
+
+       (c) Enterprise Features. The Licensor expressly reserves all
+           commercial rights to the following enterprise features, which
+           may be offered commercially in the future:
+           - Webhook adapter and real-time push notification capabilities
+           - Advanced rule engine and complex routing capabilities
+           - Multi-protocol support (AMQP, MQTT, etc.)
+           - Enterprise monitoring and metrics (Prometheus, Grafana integration)
+           - Advanced security features (message encryption, digital signing)
+           - Centralized configuration management
+           - High-availability and clustering capabilities
+
+           These features may be implemented in open-source form for
+           community use, but the Licensor reserves the right to offer
+           enhanced versions commercially, including features not available
+           in the open-source version.
+
+   11. Attribution.
+
+       When redistributing the Work or Derivative Works, you must include
+       the following attribution notice in a conspicuous location:
+
+       "This product includes software developed as part of the MailBus
+       project (https://github.com/mailbus/mailbus)."
+
+   12. Compliance.
+
+       Failure to comply with these Additional Terms constitutes a material
+       breach of this License and may result in termination of your rights
+       under this License.
+
    Copyright [yyyy] [name of copyright owner]
 
    Licensed under the Apache License, Version 2.0 (the "License");
