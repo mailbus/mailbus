@@ -1,6 +1,6 @@
 # MailBus
 
-> Email-based message bus for agent communication
+> The first Email-based message bus for agent communication
 
 MailBus is a CLI tool that turns email into a message bus for agent communication. It enables any script or program to communicate asynchronously using standard email protocols (SMTP/IMAP).
 
