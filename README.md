@@ -348,6 +348,10 @@ go test -tags=integration ./...
 go test -cover ./...
 ```
 
+## 🤖 For AI Agents
+
+AI agents (Claude Code, Codex, OpenClaw, etc.) can refer to [AGENT_INSTALLATION.md](AGENT_INSTALLATION.md) for structured installation and usage instructions.
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details.
