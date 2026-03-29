@@ -43,11 +43,82 @@ sudo mv mailbus /usr/local/bin/  # Linux/macOS
 # OR copy to PATH directory on Windows
 ```
 
-### Option 3: Download Binary
+### Option 3: Download Prebuilt Binary
+
+**Automatic Installation (Recommended):**
 
 ```bash
-# Linux
+# Linux/macOS - Auto-detect platform and install
+curl -sSL https://raw.githubusercontent.com/mailbus/mailbus/main/scripts/install.sh | bash
+
+# Or download and run manually
+wget https://raw.githubusercontent.com/mailbus/mailbus/main/scripts/install.sh
+chmod +x install.sh
+./install.sh
+
+# Windows PowerShell - Auto-detect and install
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/mailbus/mailbus/main/scripts/install.ps1" -OutFile "install.ps1"
+./install.ps1
+```
+
+**Manual Download by Platform:**
+
+```bash
+# Detect OS and architecture
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m)
+
+# Map architecture
+case $ARCH in
+  x86_64) ARCH="amd64" ;;
+  aarch64|arm64) ARCH="arm64" ;;
+  armv7l) ARCH="armv7" ;;
+  i386|i686) ARCH="386" ;;
+esac
+
+# Download appropriate binary
+wget https://github.com/mailbus/mailbus/releases/latest/download/mailbus-${OS}-${ARCH} -O mailbus
+chmod +x mailbus
+```
+
+**Platform-Specific Downloads:**
+
+```bash
+# Linux AMD64
 wget https://github.com/mailbus/mailbus/releases/latest/download/mailbus-linux-amd64 -O mailbus
+
+# Linux ARM64 (for ARM servers like AWS Graviton)
+wget https://github.com/mailbus/mailbus/releases/latest/download/mailbus-linux-arm64 -O mailbus
+
+# macOS Intel
+wget https://github.com/mailbus/mailbus/releases/latest/download/mailbus-darwin-amd64 -O mailbus
+
+# macOS Apple Silicon (M1/M2)
+wget https://github.com/mailbus/mailbus/releases/latest/download/mailbus-darwin-arm64 -O mailbus
+
+# Windows (PowerShell)
+Invoke-WebRequest -Uri "https://github.com/mailbus/mailbus/releases/latest/download/mailbus-windows-amd64.exe" -OutFile "mailbus.exe"
+```
+
+**Verify Downloaded Binary:**
+
+```bash
+# Download checksum file
+wget https://github.com/mailbus/mailbus/releases/latest/download/mailbus-linux-amd64.sha256 -O mailbus.sha256
+
+# Verify checksum
+sha256sum -c mailbus.sha256
+```
+
+**Supported Platforms:**
+
+| OS | Architecture | Binary Name |
+|----|--------------|--------------|
+| Linux | AMD64 (x86_64) | mailbus-linux-amd64 |
+| Linux | ARM64 (aarch64) | mailbus-linux-arm64 |
+| macOS | AMD64 (Intel) | mailbus-darwin-amd64 |
+| macOS | ARM64 (Apple Silicon) | mailbus-darwin-arm64 |
+| Windows | AMD64 (x86_64) | mailbus-windows-amd64.exe |
 chmod +x mailbus
 
 # macOS
