@@ -1,0 +1,12 @@
+# Binaries
+mailbus
+mailbus.exe
+*.exe
+# Test files
+*.test
+# IDE
+.vscode/
+.idea/
+# OS
+Thumbs.db
+.DS_Store

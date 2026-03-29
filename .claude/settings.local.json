@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(go version:*)",
+      "Bash(dir:*)",
+      "Bash(winget:*)",
+      "Bash(choco:*)",
+      "Bash(go env:*)",
+      "Bash(go mod init:*)",
+      "Bash(go get:*)",
+      "Bash(go build:*)",
+      "Bash(go doc:*)",
+      "Bash(./mailbus.exe:*)",
+      "Bash(chmod:*)",
+      "Bash(git init:*)",
+      "Bash(git config:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
