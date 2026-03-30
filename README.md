@@ -37,11 +37,11 @@ mailbus config validate
 ### First Message
 
 ```bash
-# Send a message
+# Send a message with Front Matter + Markdown
 mailbus send \
   --to agent@example.com \
   --subject "[task] Hello World" \
-  --body '{"type":"greeting","message":"Hello from MailBus"}'
+  --file task.md
 
 # List messages
 mailbus list --unread
@@ -63,13 +63,40 @@ MailBus leverages the ubiquity and reliability of email protocols to create a si
 
 ### Message Format
 
-Messages are typically JSON-formatted emails with structured subjects:
+MailBus uses **Front Matter + Markdown** format for messages:
 
+```yaml
+---
+task:
+  type: code_review
+  priority: high
+language: python
+timeout: 300
+tags: [security, performance]
+---
+# Code Review Request
+
+Please review the following code for potential issues...
+
+## Requirements
+- [ ] Security vulnerabilities
+- [ ] Performance optimization
+- [ ] Code style consistency
 ```
-Subject: [tag.category] Human readable title
-X-MailBus-Version: 1.0
-Body: {"type":"request","data":{...}}
-```
+
+**Email Headers** (transport layer):
+- `From`: sender email address
+- `To`: recipient email addresses
+- `Subject`: human-readable subject with tags
+- `Content-Type`: `text/markdown; charset=utf-8`
+- `X-MailBus-Format`: `frontmatter`
+
+**Front Matter** (business layer):
+- Task metadata (type, priority, language, timeout)
+- Tags for categorization
+- Data payload
+- Attachment metadata
+- Custom business fields
 
 ### Tags in Subject
 
@@ -90,15 +117,38 @@ Send messages via SMTP:
 ```bash
 mailbus send [flags]
 
+# Single file mode (Front Matter + Markdown)
+mailbus send --to agent@example.com --subject "[task] Analysis" --file request.md
+
+# Split mode (separate metadata and content)
+mailbus send --to agent@example.com --subject "[task] Analysis" \
+  --meta meta.yaml --body content.md
+
+# Inline mode
+mailbus send --to agent@example.com --subject "[task] Analysis" \
+  --field "task.type=analysis" \
+  --field "priority=high" \
+  --markdown "# Analyze Q1 data\n\nPlease analyze..."
+
+# With attachments
+mailbus send --to agent@example.com --file request.md \
+  --attach data.csv \
+  --attach-desc "data.csv:Q1 sales data"
+
 Flags:
   --to string[]           recipient addresses (required)
   --subject string        message subject (required)
-  --body string           message body
-  --file string           read body from file
+  --file string           read complete message (front matter + markdown) from file
+  --meta string           read front matter metadata from YAML file
+  --body string           read markdown content from file
+  --markdown string       inline markdown content
+  --field string[]        add metadata field (key=value, supports dot notation)
   --attach string[]       file attachments
+  --attach-desc string[]  attachment description (name:description)
+  --attach-dir string     directory for attachment files (default: current dir)
   --header stringToString custom headers (key=value)
-  --format string         body format (json or text)
   --priority string       message priority (high/normal/low)
+  -A, --account string     use specified account
 ```
 
 ### poll
@@ -108,17 +158,33 @@ Poll for and process incoming messages:
 ```bash
 mailbus poll [flags]
 
+# List unread messages
+mailbus poll --unread
+
+# Execute handler once
+mailbus poll --subject "\[task\]" --handler "./process.sh" --once
+
+# Continuous monitoring with attachments
+mailbus poll --subject "\[task\]" --handler "./process.sh" \
+  --continuous --interval 30 --download-attachments --attach-dir ./workspace
+
 Flags:
-  --subject string       subject filter (supports regex)
-  --from string          sender filter
-  --unread               only process unread messages
-  --once                 process once and exit
-  --continuous           continuously poll for messages
-  --interval int         polling interval in seconds (default: 30)
-  --handler string       handler command to execute
-  --on-error string      error handling (continue/stop/retry)
-  --reply-with-result    send handler result as reply
-  --mark-after string    mark action after processing
+  --subject string            subject filter (supports regex)
+  --from string               sender filter
+  --unread                    only process unread messages
+  --once                      process once and exit
+  -c, --continuous            continuously poll for messages
+  -i, --interval int          polling interval in seconds (default: 30)
+  -H, --handler string        handler command to execute
+  --handler-timeout int       handler timeout in seconds
+  --on-error string           error handling (continue/stop/retry)
+  --reply-with-result         send handler result as reply
+  --mark-after string         mark action after processing (read/delete/none)
+  -F, --folder string         IMAP folder to check (default: INBOX)
+  --format string             output format (table/json/compact)
+  --download-attachments      download message attachments
+  --attach-dir string         directory to save attachments
+  -A, --account string        use specified account
 ```
 
 ### list
@@ -134,6 +200,7 @@ Flags:
   --unread           only show unread messages
   --limit int        limit number of messages (default: 20)
   --format string    output format (table/json/compact)
+  -A, --account string use specified account
 ```
 
 ### mark
@@ -147,6 +214,7 @@ Flags:
   --id string       message ID (required)
   --action string   action: read/unread/delete/undelete/flag/unflag/move
   --folder string   target folder (required for move)
+  -A, --account string use specified account
 ```
 
 ### config
@@ -216,43 +284,73 @@ global:
 
 Handlers are scripts or commands that process messages.
 
-### Bash Handler
+### Message Handler Input
+
+The handler receives the message via stdin. For Front Matter messages, the handler gets:
+- Email headers as environment variables
+- Front Matter fields as environment variables
+- Markdown content via stdin
+
+### Environment Variables Available to Handlers
+
+```bash
+# Email headers (always available)
+MAILBUS_FROM="sender@example.com"
+MAILBUS_TO="recipient@example.com"
+MAILBUS_SUBJECT="[task] Analysis"
+MAILBUS_MESSAGE_ID="msg123@domain"
+
+# Front Matter fields (if present)
+MAILBUS_TASK_TYPE="analysis"
+MAILBUS_TASK_PRIORITY="high"
+MAILBUS_LANGUAGE="python"
+MAILBUS_TIMEOUT="300"
+MAILBUS_TAGS="urgent,q1"
+
+# Message content
+# Stdin contains the markdown content
+```
+
+### Bash Handler Example
 
 ```bash
 #!/bin/bash
 # process.sh
 
-# Read message from stdin
-MESSAGE=$(cat)
+# Read markdown content
+CONTENT=$(cat)
 
-# Extract data using jq
-QUERY=$(echo "$MESSAGE" | jq -r '.payload.query')
+# Access metadata from environment
+TASK_TYPE="$MAILBUS_TASK_TYPE"
+PRIORITY="$MAILBUS_TASK_PRIORITY"
 
-# Process the data
-RESULT=$(python process.py "$QUERY")
+echo "Processing $TASK_TYPE task (priority: $PRIORITY)"
 
-# Output result as JSON
+# Process the content
+RESULT=$(python process.py "$CONTENT")
+
+# Output result
 echo "{\"status\":\"success\",\"result\":\"$RESULT\"}"
 ```
 
-### Python Handler
+### Python Handler Example
 
 ```python
 #!/usr/bin/env python3
 # handler.py
 
+import os
 import sys
-import json
 
-# Read message from stdin
-message = json.load(sys.stdin)
+# Get metadata from environment
+task_type = os.getenv('MAILBUS_TASK_TYPE', 'unknown')
+priority = os.getenv('MAILBUS_TASK_PRIORITY', 'normal')
 
-# Process the message
-query = message.get('payload', {}).get('query', '')
-result = process(query)
+# Read markdown content from stdin
+content = sys.stdin.read()
 
-# Output result as JSON
-print(json.dumps({"status": "success", "result": result}))
+print(f"Processing {task_type} task (priority: {priority})")
+print(f"Content length: {len(content)} bytes")
 ```
 
 ### Using Handlers
@@ -267,6 +365,10 @@ mailbus poll --subject "\[alert\]" --handler "./alert.sh" --continuous
 # With reply
 mailbus poll --subject "\[query\]" --handler "python query.py" \
   --reply-with-result --mark-after read
+
+# With attachment downloads
+mailbus poll --subject "\[data\]" --handler "./process.sh" \
+  --download-attachments --attach-dir ./workspace
 ```
 
 ## 🌐 Email Provider Setup
@@ -376,6 +478,7 @@ Apache License 2.0 with additional terms - see [LICENSE](LICENSE) for details.
 - Built with [Cobra](https://github.com/spf13/cobra) for CLI
 - Uses [go-imap](https://github.com/emersion/go-imap) for IMAP
 - Uses [go-smtp](https://github.com/emersion/go-smtp) for SMTP
+- Front Matter format inspired by Jekyll and Hugo static site generators
 
 ## 📮 Contact
 

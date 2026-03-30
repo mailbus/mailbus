@@ -246,19 +246,113 @@ func (a *IMAPAdapter) parseMessageSimple(imapMsg *imap.Message) *core.Message {
 				data, _ := io.ReadAll(literal)
 				bodyStr := string(data)
 
-				// Simple parsing - look for JSON or plain text
-				if strings.HasPrefix(bodyStr, "{") || strings.HasPrefix(bodyStr, "[") {
-					msg.Body = bodyStr
-					msg.ContentType = "application/json"
-				} else {
-					msg.Body = bodyStr
-					msg.ContentType = "text/plain"
-				}
+				// Parse message body
+				a.parseMessageBody(msg, bodyStr, imapMsg.Envelope)
 			}
 		}
 	}
 
 	return msg
+}
+
+// parseMessageBody parses the message body with Front Matter support
+func (a *IMAPAdapter) parseMessageBody(msg *core.Message, bodyStr string, envelope *imap.Envelope) {
+	// Extract custom headers from the raw message
+	// Split headers and body
+	parts := strings.SplitN(bodyStr, "\r\n\r\n", 2)
+	if len(parts) < 2 {
+		parts = strings.SplitN(bodyStr, "\n\n", 2)
+	}
+
+	headers := make(map[string]string)
+	if len(parts) >= 1 {
+		headerSection := parts[0]
+		for _, line := range strings.Split(headerSection, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "From:") || strings.HasPrefix(line, "To:") ||
+				strings.HasPrefix(line, "Subject:") || strings.HasPrefix(line, "Date:") ||
+				strings.HasPrefix(line, "Cc:") || strings.HasPrefix(line, "Message-ID:") {
+				continue
+			}
+			if strings.Contains(line, ":") {
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					key := strings.TrimSpace(strings.TrimPrefix(parts[0], "X-"))
+					value := strings.TrimSpace(parts[1])
+					headers[key] = value
+				}
+			}
+		}
+	}
+
+	// Check if this is a MailBus format message
+	isMailBusFormat := headers["MailBus-Format"] == core.FormatFrontMatter ||
+		strings.Contains(bodyStr, core.HeaderMailBusFormat)
+
+	// Get the actual body content (after headers)
+	var contentBody string
+	if len(parts) >= 2 {
+		contentBody = parts[1]
+	} else {
+		contentBody = bodyStr
+	}
+
+	if isMailBusFormat && core.HasFrontMatter(contentBody) {
+		// Parse Front Matter
+		fm, markdown, err := core.ParseMessage(contentBody)
+		if err == nil && fm != nil {
+			// Successfully parsed Front Matter
+			// Store front matter in headers for later use
+			if fm.Task != nil {
+				if fm.Task.Type != "" {
+					msg.AddHeader("X-MailBus-Task-Type", fm.Task.Type)
+				}
+				if fm.Task.Priority != "" {
+					msg.AddHeader("X-MailBus-Task-Priority", fm.Task.Priority)
+				}
+				if fm.Task.Language != "" {
+					msg.AddHeader("X-MailBus-Language", fm.Task.Language)
+				}
+			}
+			if fm.Priority != "" {
+				msg.AddHeader("X-MailBus-Priority", fm.Priority)
+			}
+			if fm.Type != "" {
+				msg.AddHeader("X-MailBus-Type", fm.Type)
+			}
+			if len(fm.Tags) > 0 {
+				msg.AddHeader("X-MailBus-Tags", strings.Join(fm.Tags, ","))
+			}
+
+			// Store attachments info
+			if len(fm.Attachments) > 0 {
+				attachments := make([]string, len(fm.Attachments))
+				for i, att := range fm.Attachments {
+					attachments[i] = fmt.Sprintf("%s:%d", att.Name, att.Size)
+				}
+				msg.AddHeader("X-MailBus-Attachments", strings.Join(attachments, ","))
+			}
+
+			msg.ContentType = core.ContentTypeMarkdown
+			msg.Body = markdown
+			return
+		}
+	}
+
+	// Fallback: detect content type
+	if strings.HasPrefix(contentBody, "{") || strings.HasPrefix(contentBody, "[") {
+		msg.Body = contentBody
+		msg.ContentType = "application/json"
+	} else if core.HasFrontMatter(contentBody) {
+		// Has front matter but not marked as MailBus format
+		// Try to parse anyway
+		_, markdown, _ := core.ParseMessage(contentBody)
+		msg.ContentType = core.ContentTypeMarkdown
+		msg.Body = markdown
+	} else {
+		msg.Body = contentBody
+		msg.ContentType = "text/plain"
+	}
 }
 
 // ListFolders lists folders

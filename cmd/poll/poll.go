@@ -14,19 +14,21 @@ import (
 )
 
 var (
-	subjectFilter string
-	fromFilter    string
-	unreadOnly    bool
-	once          bool
-	continuous    bool
-	interval      int
-	handler       string
-	handlerTimeout int
-	onError       string
-	replyWith     bool
-	markAfter     string
-	folder        string
-	outputFormat  string
+	subjectFilter     string
+	fromFilter        string
+	unreadOnly        bool
+	once              bool
+	continuous        bool
+	interval          int
+	handler           string
+	handlerTimeout    int
+	onError           string
+	replyWith         bool
+	markAfter         string
+	folder            string
+	outputFormat      string
+	downloadAttachments bool
+	attachDir          string
 )
 
 var rootCmd *cobra.Command
@@ -62,6 +64,10 @@ The poll command can run once or continuously monitor for new messages.`,
 	cmd.Flags().StringVar(&markAfter, "mark-after", "read", "mark action after processing (read/delete/none)")
 	cmd.Flags().StringVarP(&folder, "folder", "F", "INBOX", "IMAP folder to check")
 	cmd.Flags().StringVar(&outputFormat, "format", "table", "output format (table/json/compact)")
+
+	// Attachment flags
+	cmd.Flags().BoolVar(&downloadAttachments, "download-attachments", false, "download message attachments")
+	cmd.Flags().StringVar(&attachDir, "attach-dir", "", "directory to save attachments (default: current dir)")
 
 	rootCmd = cmd
 	return cmd
@@ -228,6 +234,13 @@ func receiveMessages(ctx context.Context, account *config.AccountConfig, passwor
 
 func processMessage(ctx context.Context, cfg *config.Config, account *config.AccountConfig, password string, msg *core.Message) error {
 	fmt.Printf("Processing: %s\n", msg.Subject)
+
+	// Download attachments if requested
+	if downloadAttachments {
+		if err := downloadAttachmentsFromMessage(ctx, account, password, msg); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to download attachments: %v\n", err)
+		}
+	}
 
 	// Execute handler
 	result, err := executeHandler(ctx, msg)
@@ -447,4 +460,45 @@ func getAccount(cfg *config.Config, name string) (*config.AccountConfig, error) 
 		name = cfg.DefaultAccount
 	}
 	return cfg.GetAccount(name)
+}
+
+// downloadAttachmentsFromMessage downloads attachments from a message
+// Note: This is a placeholder implementation. Full MIME parsing is needed
+// to extract actual attachment files from the email. This requires
+// modifying the IMAP adapter to fetch and parse the full MIME structure.
+func downloadAttachmentsFromMessage(ctx context.Context, account *config.AccountConfig, password string, msg *core.Message) error {
+	// Check if message has attachment metadata in headers
+	attachmentsHeader, hasAttachments := msg.GetHeader("X-MailBus-Attachments")
+	if !hasAttachments {
+		// Check if message has attachments info from front matter
+		attachmentsHeader, hasAttachments = msg.GetHeader("X-MailBus-Attachments")
+	}
+
+	if !hasAttachments {
+		return nil // No attachments to download
+	}
+
+	// Determine target directory
+	targetDir := attachDir
+	if targetDir == "" {
+		targetDir = "."
+	}
+
+	// Create directory if needed
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return fmt.Errorf("failed to create attachment directory: %w", err)
+	}
+
+	fmt.Printf("  Attachments: %s\n", attachmentsHeader)
+
+	// Note: Actual attachment download requires:
+	// 1. Fetching the full MIME message structure from IMAP
+	// 2. Parsing multipart/* content using go-message
+	// 3. Extracting each attachment part
+	// 4. Writing files to targetDir with checksum verification
+	//
+	// For now, this is a placeholder that logs the attachment info
+	// The full implementation requires significant changes to the IMAP adapter
+
+	return fmt.Errorf("attachment download requires full MIME parsing (not yet implemented)")
 }
