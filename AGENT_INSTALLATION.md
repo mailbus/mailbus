@@ -7,7 +7,7 @@
 ## Quick Reference
 
 - **Repository**: https://github.com/mailbus/mailbus
-- **Version**: v0.1.0
+- **Version**: v0.3.0
 - **Language**: Go 1.21+
 - **License**: Apache 2.0 with cloud service restrictions
 
@@ -119,15 +119,6 @@ sha256sum -c mailbus.sha256
 | macOS | AMD64 (Intel) | mailbus-darwin-amd64 |
 | macOS | ARM64 (Apple Silicon) | mailbus-darwin-arm64 |
 | Windows | AMD64 (x86_64) | mailbus-windows-amd64.exe |
-chmod +x mailbus
-
-# macOS
-wget https://github.com/mailbus/mailbus/releases/latest/download/mailbus-darwin-amd64 -O mailbus
-chmod +x mailbus
-
-# Windows (PowerShell)
-Invoke-WebRequest -Uri "https://github.com/mailbus/mailbus/releases/latest/download/mailbus-windows-amd64.exe" -OutFile "mailbus.exe"
-```
 
 ---
 
@@ -211,32 +202,121 @@ mailbus config validate
 
 ---
 
+## Message Format
+
+MailBus uses **Front Matter + Markdown** format for messages:
+
+```yaml
+---
+task:
+  type: code_review
+  priority: high
+language: python
+timeout: 300
+tags: [security, performance]
+---
+# Code Review Request
+
+Please review the following code for potential issues...
+
+## Requirements
+- [ ] Security vulnerabilities
+- [ ] Performance optimization
+- [ ] Code style consistency
+```
+
+**Email Headers** (transport layer):
+- `From`: sender email address
+- `To`: recipient email addresses
+- `Subject`: human-readable subject with tags
+- `Content-Type`: `text/markdown; charset=utf-8`
+- `X-MailBus-Format`: `frontmatter`
+
+**Front Matter** (business layer):
+- Task metadata (type, priority, language, timeout)
+- Tags for categorization
+- Data payload
+- Attachment metadata
+- Custom business fields
+
+---
+
 ## Core Commands Reference
 
 ### Send Message
 
+**File Mode** (recommended):
+
 ```bash
 mailbus send \
   --to recipient@example.com \
-  --subject "[tag] Message Subject" \
-  --body '{"key":"value"}'
+  --subject "[task] Analysis" \
+  --file message.md
+```
+
+**Split Mode** (separate metadata and content):
+
+```bash
+mailbus send \
+  --to recipient@example.com \
+  --subject "[task] Analysis" \
+  --meta metadata.yaml \
+  --body content.md
+```
+
+**Inline Mode**:
+
+```bash
+mailbus send \
+  --to recipient@example.com \
+  --subject "[task] Analysis" \
+  --field "task.type=analysis" \
+  --field "priority=high" \
+  --markdown "# Analyze Q1 data\n\nPlease analyze..."
+```
+
+**With Attachments**:
+
+```bash
+mailbus send \
+  --to recipient@example.com \
+  --file request.md \
+  --attach data.csv \
+  --attach-desc "data.csv:Q1 sales data"
 ```
 
 **Flags:**
 - `--to string[]`: Recipient addresses (required)
 - `--subject string`: Message subject (required)
-- `--body string`: Message body (JSON format recommended)
-- `--file string`: Read body from file
-- `--format string`: Body format (json/text)
-- `--priority string`: Priority (high/normal/low)
+- `--file string`: Read complete message (front matter + markdown) from file
+- `--meta string`: Read front matter metadata from YAML file
+- `--body string`: Read markdown content from file
+- `--markdown string`: Inline markdown content
+- `--field string[]`: Add metadata field (key=value, supports dot notation)
+- `--attach string[]`: File attachments
+- `--attach-desc string[]`: Attachment description (name:description)
+- `--attach-dir string`: Directory for attachment files (default: current dir)
+- `--header stringToString`: Custom headers (key=value)
+- `--priority string`: Message priority (high/normal/low)
+- `-A, --account string`: Use specified account
 
 ### Poll Messages
 
 ```bash
 mailbus poll \
-  --subject "\[tag\]" \
+  --subject "\[task\]" \
   --handler "./handler.sh" \
   --once
+```
+
+**Continuous monitoring:**
+
+```bash
+mailbus poll \
+  --subject "\[alert\]" \
+  --handler "./alert.sh" \
+  --continuous \
+  --interval 30
 ```
 
 **Flags:**
@@ -244,10 +324,18 @@ mailbus poll \
 - `--from string`: Sender filter
 - `--unread`: Only unread messages
 - `--once`: Process once and exit
-- `--continuous`: Continuous polling mode
-- `--interval int`: Polling interval in seconds (default: 30)
-- `--handler string`: Handler command to execute
+- `-c, --continuous`: Continuous polling mode
+- `-i, --interval int`: Polling interval in seconds (default: 30)
+- `-H, --handler string`: Handler command to execute
+- `--handler-timeout int`: Handler timeout in seconds
 - `--on-error string`: Error handling (continue/stop/retry)
+- `--reply-with-result`: Send handler result as reply
+- `--mark-after string`: Mark action after processing (read/delete/none)
+- `-F, --folder string`: IMAP folder to check (default: INBOX)
+- `--format string`: Output format (table/json/compact)
+- `--download-attachments`: Download message attachments
+- `--attach-dir string`: Directory to save attachments
+- `-A, --account string`: Use specified account
 
 ### List Messages
 
@@ -261,6 +349,7 @@ mailbus list --unread --limit 10
 - `--unread`: Only unread messages
 - `--limit int`: Limit results (default: 20)
 - `--format string`: Output format (table/json/compact)
+- `-A, --account string`: Use specified account
 
 ### Mark Messages
 
@@ -270,25 +359,98 @@ mailbus mark --id "message-id" --action read
 
 **Flags:**
 - `--id string`: Message ID (required)
-- `--action string`: Action (read/unread/delete)
+- `--action string`: Action (read/unread/delete/undelete/flag/unflag/move)
 - `--folder string`: Target folder (for move action)
+- `-A, --account string`: Use specified account
 
 ---
 
 ## Handler Development
 
-### Message Format (Input to Handler)
+### Handler Input Format
 
-```json
-{
-  "id": "message-id@example.com",
-  "from": "sender@example.com",
-  "to": ["recipient@example.com"],
-  "subject": "[tag] Subject",
-  "body": "{\"type\":\"request\",\"data\":{}}",
-  "timestamp": "2024-03-29T10:30:00Z",
-  "flags": ["\\Seen"]
-}
+For Front Matter messages, handlers receive:
+
+**Environment Variables:**
+```bash
+# Email headers (always available)
+MAILBUS_FROM="sender@example.com"
+MAILBUS_TO="recipient@example.com"
+MAILBUS_SUBJECT="[task] Analysis"
+MAILBUS_MESSAGE_ID="msg123@domain"
+
+# Front Matter fields (if present)
+MAILBUS_TASK_TYPE="analysis"
+MAILBUS_TASK_PRIORITY="high"
+MAILBUS_LANGUAGE="python"
+MAILBUS_TIMEOUT="300"
+MAILBUS_TAGS="urgent,q1"
+
+# Stdin contains the markdown content
+```
+
+**Stdin Content:**
+The markdown body content is passed via stdin.
+
+### Example Handlers
+
+**Bash Handler:**
+
+```bash
+#!/bin/bash
+# process.sh
+
+# Read markdown content
+CONTENT=$(cat)
+
+# Access metadata from environment
+TASK_TYPE="$MAILBUS_TASK_TYPE"
+PRIORITY="$MAILBUS_TASK_PRIORITY"
+
+echo "Processing $TASK_TYPE task (priority: $PRIORITY)"
+
+# Process the content
+RESULT=$(python process.py "$CONTENT")
+
+# Output result (JSON format for reply)
+echo "{\"status\":\"success\",\"result\":\"$RESULT\"}"
+```
+
+**Python Handler:**
+
+```python
+#!/usr/bin/env python3
+import os
+import sys
+
+# Get metadata from environment
+task_type = os.getenv('MAILBUS_TASK_TYPE', 'unknown')
+priority = os.getenv('MAILBUS_TASK_PRIORITY', 'normal')
+
+# Read markdown content from stdin
+content = sys.stdin.read()
+
+print(f"Processing {task_type} task (priority: {priority})")
+print(f"Content length: {len(content)} bytes")
+
+# Output result
+print('{"status":"success","result":"processed"}')
+```
+
+**Node.js Handler:**
+
+```javascript
+#!/usr/bin/env node
+const taskType = process.env.MAILBUS_TASK_TYPE || 'unknown';
+const priority = process.env.MAILBUS_TASK_PRIORITY || 'normal';
+
+// Read markdown from stdin
+let content = '';
+process.stdin.on('data', chunk => content += chunk);
+process.stdin.on('end', () => {
+  console.log(`Processing ${taskType} task (priority: ${priority})`);
+  console.log(JSON.stringify({status: "success"}));
+});
 ```
 
 ### Handler Response Format
@@ -301,43 +463,13 @@ mailbus mark --id "message-id" --action read
 }
 ```
 
-### Example Handlers
-
-**Bash Handler:**
-
-```bash
-#!/bin/bash
-# process.sh
-
-MESSAGE=$(cat)
-SUBJECT=$(echo "$MESSAGE" | jq -r '.subject')
-BODY=$(echo "$MESSAGE" | jq -r '.body')
-
-# Process message
-echo '{"status":"success","result":"processed"}'
-```
-
-**Python Handler:**
-
-```python
-#!/usr/bin/env python3
-import sys, json
-
-msg = json.load(sys.stdin)
-subject = msg.get('subject', '')
-body = msg.get('body', '{}')
-
-# Process message
-print(json.dumps({"status": "success"}))
-```
-
-**Node.js Handler:**
-
-```javascript
-#!/usr/bin/env node
-const msg = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
-// Process message
-console.log(JSON.stringify({status: "success"}));
+For replies, you can also output:
+```json
+{
+  "status": "success",
+  "reply_subject": "Re: [task] Analysis",
+  "reply_body": "Analysis complete..."
+}
 ```
 
 ---
@@ -351,7 +483,8 @@ console.log(JSON.stringify({status: "success"}));
 mailbus send \
   --to agent@example.com \
   --subject "[query] Get Data" \
-  --body '{"query":"SELECT * FROM users"}'
+  --field "query.type=sql" \
+  --markdown "Please run: SELECT * FROM users"
 
 # Poll for response
 mailbus poll --subject "\[response\]" --once
@@ -447,11 +580,22 @@ mailbus config list
 ### Test Sending
 
 ```bash
+# Create test message
+cat > /tmp/test.md << 'EOF'
+---
+test:
+  run: true
+---
+# Test Message
+
+This is a test message.
+EOF
+
 # Send test message to yourself
 mailbus send \
   --to $(mailbus config list | grep username | head -1 | cut -d' ' -f2) \
   --subject "[test] Test Message" \
-  --body '{"test":true}'
+  --file /tmp/test.md
 ```
 
 ### Test Polling
@@ -528,6 +672,12 @@ See [LICENSE](https://github.com/mailbus/mailbus/blob/main/LICENSE) for details.
 ---
 
 ## Version History
+
+- **v0.3.0** (2024-03-30): Front Matter + Markdown format
+  - Message format changed from JSON to YAML Front Matter + Markdown
+  - New CLI flags: --file, --meta, --body, --field, --markdown, --attach
+  - Attachment metadata framework
+  - Handler environment variables for Front Matter fields
 
 - **v0.1.0** (2024-03-29): Initial release
   - SMTP/IMAP support
