@@ -100,7 +100,10 @@ func (a *IMAPAdapter) Receive(ctx context.Context, filter *core.Filter) ([]*core
 			criteria.WithoutFlags = []string{imap.SeenFlag}
 		}
 		if filter.SubjectPattern != "" {
-			criteria.Body = []string{filter.SubjectPattern}
+			if criteria.Header == nil {
+				criteria.Header = make(textproto.MIMEHeader)
+			}
+			criteria.Header.Add("Subject", filter.SubjectPattern)
 		}
 		if filter.FromPattern != "" {
 			if criteria.Header == nil {

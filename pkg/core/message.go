@@ -184,7 +184,33 @@ func (m *Message) BuildMIME() (string, error) {
 	}
 	builder.WriteString(fmt.Sprintf("Subject: %s\r\n", m.Subject))
 	builder.WriteString(fmt.Sprintf("Date: %s\r\n", m.Timestamp.Format(time.RFC1123Z)))
-	builder.WriteString(fmt.Sprintf("Content-Type: %s; charset=utf-8\r\n", m.ContentType))
+
+	// Handle content type conversion for email client compatibility
+	contentType := m.ContentType
+	bodyContent := m.Body
+
+	// Convert markdown to plain text for better email client support
+	// but preserve format information in headers for agent compatibility
+	if m.ContentType == ContentTypeMarkdown {
+		// Strip front matter if present and use plain text
+		if HasFrontMatter(bodyContent) {
+			_, markdownContent, err := ParseMessage(bodyContent)
+			if err == nil && markdownContent != "" {
+				bodyContent = markdownContent
+			} else {
+				// If parsing fails, try to just extract the content after front matter delimiter
+				parts := strings.SplitN(bodyContent, FrontMatterDelimiter, 3)
+				if len(parts) >= 3 {
+					bodyContent = strings.TrimSpace(parts[2])
+				}
+			}
+		}
+		// Use plain text for compatibility, but mark original format in header
+		contentType = "text/plain; charset=\"utf-8\""
+		m.AddHeader("X-MailBus-Format", "markdown")
+	}
+
+	builder.WriteString(fmt.Sprintf("Content-Type: %s\r\n", contentType))
 	builder.WriteString("MIME-Version: 1.0\r\n")
 
 	// Custom headers
