@@ -8,12 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial CLI implementation with send/poll/list/mark/config commands
-- SMTP adapter for sending messages
-- IMAP adapter for receiving messages
-- Message filtering by subject, sender, read status
-- Handler system for processing messages
-- Configuration file management
+- **Password encryption** using age encryption with scrypt key derivation
+  - `mailbus crypto encrypt` command for generating encrypted passwords
+  - `password_encrypted` field in config.yaml for secure password storage
+  - `MAILBUS_CRYPTO_KEY` environment variable for decryption key
+  - Priority: `password_encrypted` > `password_env` for backward compatibility
+- Front Matter + Markdown message format with metadata support
+- Attachment support with file descriptions
+- Multiple send modes: file, split (meta+body), inline, and field-based
+
+### Changed
+- IMAP Subject search now searches headers instead of body (fixes subject filtering)
+- Markdown content converted to text/plain for better email client compatibility
+
+### Fixed
+- IMAP SubjectPattern search criteria (was searching body, now searches header)
+- scrypt work factor consistency for password encryption (fixed at 15)
 
 ### To Be Added
 - Attachment support

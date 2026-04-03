@@ -165,6 +165,8 @@ global:
 
 ### Step 3: Set Credentials
 
+**Option 1: Environment Variables (Traditional)**
+
 ```bash
 # Set password as environment variable
 export MAILBUS_PASSWORD=your-app-password
@@ -172,6 +174,36 @@ export MAILBUS_PASSWORD=your-app-password
 # For persistent configuration, add to ~/.bashrc or ~/.zshrc:
 echo 'export MAILBUS_PASSWORD=your-app-password' >> ~/.bashrc
 ```
+
+**Option 2: Encrypted Password (Recommended)**
+
+```bash
+# Set encryption key
+export MAILBUS_CRYPTO_KEY="your-encryption-key"
+
+# Generate encrypted password
+mailbus crypto encrypt --password "my-password"
+# Output: password_encrypted: AGE-ENCRYPTED-BLOB...
+
+# Copy the output to your config.yaml:
+```
+
+Update `~/.mailbus/config.yaml`:
+
+```yaml
+accounts:
+  primary:
+    username: your-email@gmail.com
+    password_encrypted: "AGE-ENCRYPTED-BLOB..."  # Paste encrypted password here
+```
+
+**Why use encrypted passwords?**
+- ✅ Passwords not stored in environment variables (which may be logged)
+- ✅ Supports git-tracked configurations without exposing secrets
+- ✅ Compatible with CI/CD (use secrets for MAILBUS_CRYPTO_KEY)
+- ✅ Backward compatible with environment variable method
+
+**Priority:** `password_encrypted` > `password_env`
 
 ### Step 4: Validate Configuration
 

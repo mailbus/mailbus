@@ -253,7 +253,7 @@ accounts:
       port: 587
       use_tls: true
     username: your-email@gmail.com
-    password_env: MAILBUS_PASSWORD  # Environment variable name
+    password_env: GMAIL_APP_PASSWORD  # Environment variable name
     from: your-email@gmail.com
 
   outlook:
@@ -279,6 +279,47 @@ global:
   log_level: info       # Log level
   handler_timeout: 60s  # Default handler timeout
 ```
+
+## 🔐 Password Security
+
+MailBus supports encrypted password storage for improved security:
+
+### Option 1: Environment Variables (Traditional)
+
+```yaml
+accounts:
+  myaccount:
+    password_env: MY_PASSWORD  # Reference environment variable
+```
+
+```bash
+export MY_PASSWORD="my-plaintext-password"
+```
+
+### Option 2: Encrypted Password (Recommended)
+
+```yaml
+accounts:
+  myaccount:
+    password_encrypted: "BASE64-ENCRYPTED-BLOB..."  # Encrypted password
+```
+
+```bash
+# Set encryption key
+export MAILBUS_CRYPTO_KEY="your-encryption-key"
+
+# Generate encrypted password
+./mailbus crypto encrypt --password "my-password"
+# Output: password_encrypted: BASE64-ENCRYPTED-BLOB...
+```
+
+**Why use encrypted passwords?**
+- ✅ Passwords not stored in environment variables (which may be logged)
+- ✅ Supports git-tracked configurations without exposing secrets
+- ✅ Compatible with CI/CD (use secrets for MAILBUS_CRYPTO_KEY)
+- ✅ Backward compatible with environment variable method
+
+**Priority:** `password_encrypted` > `password_env`
 
 ## 🔌 Handlers
 
