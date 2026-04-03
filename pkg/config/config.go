@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/mailbus/mailbus/pkg/crypto"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,9 +30,10 @@ type AccountConfig struct {
 		Port   int    `yaml:"port"`
 		UseTLS bool   `yaml:"use_tls"`
 	} `yaml:"smtp"`
-	Username    string `yaml:"username"`
-	PasswordEnv string `yaml:"password_env"` // Environment variable name
-	From        string `yaml:"from"`         // Default from address
+	Username         string `yaml:"username"`
+	PasswordEnv      string `yaml:"password_env"`       // Environment variable name (optional)
+	PasswordEncrypted string `yaml:"password_encrypted"` // Encrypted password (optional)
+	From             string `yaml:"from"`                // Default from address
 }
 
 // GlobalConfig represents global mailbus settings
@@ -77,18 +79,32 @@ func (c *Config) GetAccount(name string) (*AccountConfig, error) {
 	return account, nil
 }
 
-// GetPassword returns the password for an account from environment variable
+// GetPassword returns the password for an account
+// Priority: password_encrypted > password_env
 func (a *AccountConfig) GetPassword() (string, error) {
-	if a.PasswordEnv == "" {
-		return "", fmt.Errorf("password_env not set for account '%s'", a.Name)
+	// Priority 1: Use encrypted password (requires MAILBUS_CRYPTO_KEY)
+	if a.PasswordEncrypted != "" {
+		cryptoKey := os.Getenv("MAILBUS_CRYPTO_KEY")
+		if cryptoKey == "" {
+			return "", fmt.Errorf("password_encrypted is set but MAILBUS_CRYPTO_KEY environment variable is not set")
+		}
+		password, err := crypto.DecryptPassword(a.PasswordEncrypted, cryptoKey)
+		if err != nil {
+			return "", fmt.Errorf("failed to decrypt password: %w", err)
+		}
+		return password, nil
 	}
 
-	password := os.Getenv(a.PasswordEnv)
-	if password == "" {
-		return "", fmt.Errorf("environment variable '%s' is not set", a.PasswordEnv)
+	// Priority 2: Use environment variable (existing method)
+	if a.PasswordEnv != "" {
+		password := os.Getenv(a.PasswordEnv)
+		if password == "" {
+			return "", fmt.Errorf("environment variable '%s' is not set", a.PasswordEnv)
+		}
+		return password, nil
 	}
 
-	return password, nil
+	return "", fmt.Errorf("no password configured for account '%s' (set password_encrypted or password_env)", a.Name)
 }
 
 // Validate validates the configuration
@@ -131,8 +147,8 @@ func (a *AccountConfig) Validate() error {
 	if a.Username == "" {
 		return fmt.Errorf("username is required")
 	}
-	if a.PasswordEnv == "" {
-		return fmt.Errorf("password_env is required")
+	if a.PasswordEnv == "" && a.PasswordEncrypted == "" {
+		return fmt.Errorf("either password_env or password_encrypted is required")
 	}
 	return nil
 }
